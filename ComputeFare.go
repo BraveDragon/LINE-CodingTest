@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"timeutil/timeutil"
 )
 
 //Record : 走行記録を格納する構造体
@@ -175,12 +174,12 @@ func computeTimeDifference(prevTime Time, currentTime Time) float64 {
 }
 
 //TotimeForCompute : Record内のtimeを計算できるように変換
-func (record *Record) TotimeForCompute() timeutil.Time {
+func (record *Record) TotimeForCompute() Time {
 	parsedTime := strings.Split(record.time, ":")
 	parsedHour, _ := strconv.Atoi(parsedTime[0])
 	parsedMinute, _ := strconv.Atoi(parsedTime[1])
 	parsedSecond, _ := strconv.ParseFloat(parsedTime[2], 64)
-	return timeutil.Time{hour: uint(parsedHour), minute: uint(parsedMinute), second: parsedSecond}
+	return Time{hour: uint(parsedHour), minute: uint(parsedMinute), second: parsedSecond}
 }
 
 var errorRecord = Record{time: "error", mileage: "error"}
@@ -216,7 +215,7 @@ func readInput() ([]Record, error) {
 			if len(records) >= 2 {
 				prevTime := records[len(records)-2].TotimeForCompute()
 				currentTime := records[len(records)-1].TotimeForCompute()
-				if timeutil.isEarlier(prevTime, currentTime) == false {
+				if isEarlier(prevTime, currentTime) == false {
 					return []Record{errorRecord}, errors.New("inputs must be in chronological order")
 				}
 
@@ -249,7 +248,7 @@ func readInput() ([]Record, error) {
 		if len(records) >= 2 {
 			prevTime := records[len(records)-2].TotimeForCompute()
 			currentTime := records[len(records)-1].TotimeForCompute()
-			if timeutil.isEarlier(prevTime, currentTime) == false {
+			if isEarlier(prevTime, currentTime) == false {
 				return []Record{errorRecord}, errors.New("inputs must be in chronological order")
 			}
 
@@ -321,10 +320,10 @@ func computeFare(records []Record) uint {
 }
 
 //NightStart : 夜間時間開始(Time{hour: 22, minute: 0, second: 0})
-var NightStart = timeutil.Time{hour: 22, minute: 0, second: 0}
+var NightStart = Time{hour: 22, minute: 0, second: 0}
 
 //NightEnd : 夜間時間終了(Time{hour: 5, minute: 0, second: 0})
-var NightEnd = timeutil.Time{hour: 5, minute: 0, second: 0}
+var NightEnd = Time{hour: 5, minute: 0, second: 0}
 
 //nightTimeRate : 夜間時の距離、走行時間の倍率(1.25倍)
 const nightTimeRate float64 = 1.25
@@ -336,8 +335,8 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 	var endTime = endRecord.TotimeForCompute()
 	Mileage, _ := strconv.ParseFloat(endRecord.mileage, 64)
 
-	if timeutil.isInNight(startTime) == false {
-		timeDifference := timeutil.computeTimeDifference(startTime, endTime)
+	if isInNight(startTime) == false {
+		timeDifference := computeTimeDifference(startTime, endTime)
 		nightTime := math.Floor(float64(float64(endTime.hour)-22)/24) * 7 * 3600
 		if 0 <= ((int(endTime.hour)-22)%24) && ((int(endTime.hour)-22)%24) <= 6 {
 			nightTime += float64((int(endTime.hour)-22)%24)*3600 + float64(endTime.minute)*60 + endTime.second
@@ -357,9 +356,9 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 
 	}
 	//翌日の5時
-	nightendTomorrow := timeutil.Time{hour: 29, minute: 0, second: 0}
+	nightendTomorrow := Time{hour: 29, minute: 0, second: 0}
 	//翌5時までの時間を夜間時間に加える
-	nightTime := timeutil.computeTimeDifference(startTime.RevisedTime(), nightendTomorrow)
+	nightTime := computeTimeDifference(startTime.RevisedTime(), nightendTomorrow)
 	//基準となる時間を求めるために24時間表記に直す
 	revisedStartTime := startTime.RevisedTime()
 	//基準となる時間
@@ -369,7 +368,7 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 	}
 	criterionTime = criterionTime.AddTime(startTime.hour, startTime.minute, startTime.second)
 
-	timeDifference := timeutil.computeTimeDifference(criterionTime, endTime)
+	timeDifference := computeTimeDifference(criterionTime, endTime)
 	nightTime += math.Floor(float64(float64(endTime.hour)-22)/24) * 7 * 3600
 	if 0 <= ((int(endTime.hour)-22)%24) && ((int(endTime.hour)-22)%24) <= 6 {
 		nightTime += float64((int(endTime.hour)-22)%24)*3600 + float64(endTime.minute)*60 + endTime.second
@@ -397,20 +396,20 @@ func computeTimeAndMileage(startRecord Record, endRecord Record) (float64, float
 	var endTime = endRecord.TotimeForCompute()
 	//startTimeが通常時間で、かつendTimeが通常時間で夜間時間を跨がない場合は走行時間と走行距離をそのまま返す
 	//5時から始まり、22時に終わる場合も同様なので走行時間と走行距離をそのまま返す
-	if (timeutil.isInNight(startTime) == false && timeutil.isInNight(endTime) == false) &&
-		timeutil.isStraddledNight(startTime, endTime) == false ||
+	if (isInNight(startTime) == false && isInNight(endTime) == false) &&
+		isStraddledNight(startTime, endTime) == false ||
 		(reflect.DeepEqual(startTime.RevisedTime(), NightEnd) == true && reflect.DeepEqual(endTime.RevisedTime(), NightStart) == true) {
-		runningTime := timeutil.computeTimeDifference(startTime, endTime)
+		runningTime := computeTimeDifference(startTime, endTime)
 		runingMileage, _ := strconv.ParseFloat(endRecord.mileage, 64)
 		return runningTime, runingMileage
 
-	} else if timeutil.isInNight(startTime) == true && timeutil.isInNight(endTime) == true &&
-		timeutil.isStraddledDay(startTime, endTime) == false ||
+	} else if isInNight(startTime) == true && isInNight(endTime) == true &&
+		isStraddledDay(startTime, endTime) == false ||
 		(reflect.DeepEqual(startTime.RevisedTime(), NightStart) == true && reflect.DeepEqual(endTime.RevisedTime(), NightEnd) == true) {
 		//startTimeがNightStartより遅く、かつendTimeがNightEndより早くて通常時間を跨がない場合は走行時間と走行距離を1.25倍して返す
 		//startTimeがNightStartと一致し、かつendTimeがNightEndと一致する場合も同様なのでその時も同様に処理する
 
-		var nightTime = timeutil.computeTimeDifference(startTime, endTime) * nightTimeRate
+		var nightTime = computeTimeDifference(startTime, endTime) * nightTimeRate
 		var nightMileage, _ = strconv.ParseFloat(endRecord.mileage, 64)
 		nightMileage *= nightTimeRate
 		return nightTime, nightMileage
