@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -30,19 +31,19 @@ var errorRecord = Record{time: "error", mileage: "error"}
 
 func main() {
 
-	var input = readInput()
+	var input, err = readInput()
 
-	if reflect.DeepEqual(input[0], errorRecord) == true {
+	if err != nil {
 		os.Exit(-1)
-	} else {
-		fmt.Println(computeFare(input))
-		os.Exit(0)
 	}
+
+	fmt.Println(computeFare(input))
+	os.Exit(0)
 
 }
 
 //走行記録を1行ずつ読み込む
-func readInput() []Record {
+func readInput() ([]Record, error) {
 	var scanner = bufio.NewScanner(os.Stdin)
 	var sliced = []string{}
 	var records = []Record{}
@@ -60,28 +61,28 @@ func readInput() []Record {
 				prevTime := records[len(records)-2].TotimeForCompute()
 				currentTime := records[len(records)-1].TotimeForCompute()
 				if isEarlier(prevTime, currentTime) == false {
-					return []Record{errorRecord}
+					return []Record{errorRecord}, errors.New("inputs must be in chronological order")
 				}
 
 			}
 			if len(records) < 2 {
-				return []Record{errorRecord}
+				return []Record{errorRecord}, errors.New("length of input must be 2 or lines")
 			}
 			//全て正しく入力されていた場合はrecordsを返して終了する
-			return records
+			return records, nil
 		}
 		//時刻の入力が正しいかチェックし、間違っていたらエラーを示すRecordを返す
 		if regexp.MustCompile(`[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}`).Match([]byte(sliced[0])) == false {
-			return []Record{errorRecord}
+			return []Record{errorRecord}, errors.New("input of the time is incorrect")
 		}
 		//走行距離の入力が正しいかチェックし、間違っていたらエラーを示すRecordを返す
 		if regexp.MustCompile(`[0-9]+.[0-9]`).Match([]byte(sliced[1])) == false {
-			return []Record{errorRecord}
+			return []Record{errorRecord}, errors.New("input of mileage is incorrect")
 		}
 		//1行目の走行距離の記録が"0.0"でない時は異常なのでエラーを示すRecordを返す
 		if len(records) == 0 {
 			if sliced[1] != "0.0" {
-				return []Record{errorRecord}
+				return []Record{errorRecord}, errors.New("mileage of the first line must be '0.0'")
 			}
 		}
 
@@ -93,7 +94,7 @@ func readInput() []Record {
 			prevTime := records[len(records)-2].TotimeForCompute()
 			currentTime := records[len(records)-1].TotimeForCompute()
 			if isEarlier(prevTime, currentTime) == false {
-				return []Record{errorRecord}
+				return []Record{errorRecord}, errors.New("inputs must be in chronological order")
 			}
 
 		}
@@ -102,10 +103,10 @@ func readInput() []Record {
 
 	//正常にEOFに到達できないときはエラーを示すRecordを返して終了する
 	if scanner.Err() != nil {
-		return []Record{errorRecord}
+		return []Record{errorRecord}, errors.New("unknown error has occurred")
 	}
 	//何らかの理由でforループを抜けてしまった時は、これも異常なのでエラーを示すRecordを返して終了する
-	return []Record{errorRecord}
+	return []Record{errorRecord}, errors.New("unknown error has occurred")
 }
 
 //距離から運賃を計算する
@@ -173,55 +174,55 @@ type Time struct {
 
 //AddTime : 引数で指定しただけ加えた時刻を返す
 func (time *Time) AddTime(hour uint, minute uint, second float64) Time {
-	tmphour := time.hour + hour
-	tmpminute := time.minute + minute
-	tmpsecond := time.second + second
-	if tmpsecond >= 60 {
-		tmpsecond -= 60
-		tmpminute++
+	tmpHour := time.hour + hour
+	tmpMinute := time.minute + minute
+	tmpSecond := time.second + second
+	if tmpSecond >= 60 {
+		tmpSecond -= 60
+		tmpMinute++
 	}
-	if tmpminute >= 60 {
-		tmpminute -= 60
-		tmphour++
+	if tmpMinute >= 60 {
+		tmpMinute -= 60
+		tmpHour++
 	}
 
-	return Time{hour: tmphour, minute: tmpminute, second: tmpsecond}
+	return Time{hour: tmpHour, minute: tmpMinute, second: tmpSecond}
 }
 
 //SubtractTime : 引数で指定しただけ引いた時刻を返す
 //time.hour < hourの時はnanを返す
-func (time *Time) SubtractTime(hour uint, minute uint, second float64) Time {
-
+func (time *Time) SubtractTime(hour uint, minute uint, second float64) (Time, error) {
+	//引く時間数の方が引かれる時間数より多い時はエラーを返す
 	if time.hour < hour {
-		return Time{hour: uint(math.NaN()), minute: uint(math.NaN()), second: math.NaN()}
+		return Time{hour: uint(math.NaN()), minute: uint(math.NaN()), second: math.NaN()}, errors.New("you try to subtract too much time")
 	}
 	if minute > 60 || second > 60 {
-		return Time{hour: uint(math.NaN()), minute: uint(math.NaN()), second: math.NaN()}
+		return Time{hour: uint(math.NaN()), minute: uint(math.NaN()), second: math.NaN()}, errors.New("minute or second are incorrect")
 	}
 	tmpHour := time.hour - hour
-	tmpminute := time.minute
-	tmpsecond := time.second
-	if tmpsecond < second {
-		if tmpminute == 0 {
+	tmpMinute := time.minute
+	tmpSecond := time.second
+	if tmpSecond < second {
+		if tmpMinute == 0 {
 			tmpHour--
-			tmpminute = 59
+			tmpMinute = 59
 		} else {
-			tmpminute--
+			tmpMinute--
 		}
 
-		tmpsecond = tmpsecond + 60 - second
+		tmpSecond = tmpSecond + 60 - second
 	} else {
-		tmpsecond -= second
+		tmpSecond -= second
 	}
-	if tmpminute < minute {
+	if tmpMinute < minute {
 		tmpHour--
-		tmpminute += 60
-		tmpminute -= minute
+		tmpMinute += 60
+		tmpMinute -= minute
 	} else {
-		tmpminute -= minute
+		tmpMinute -= minute
 	}
 
-	return Time{hour: tmpHour, minute: tmpminute, second: tmpsecond}
+	return Time{hour: tmpHour, minute: tmpMinute, second: tmpSecond}, nil
 }
 
 //RevisedTime : 時間を24時間表記に直す
@@ -316,8 +317,11 @@ const nightTimeRate float64 = 1.25
 //prevTimeとcurrentTimeの時間差を求める
 func computeTimeDifference(prevTime Time, currentTime Time) float64 {
 	var hourDifference = math.Abs((float64(currentTime.hour - prevTime.hour)))
+
 	var minuteDifference = math.Abs(float64(currentTime.minute - prevTime.minute))
+
 	var secondDifference = math.Abs(currentTime.second - prevTime.second)
+
 	return 3600*hourDifference + 60*minuteDifference + secondDifference
 
 }
@@ -328,38 +332,14 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 	var startTime = startRecord.TotimeForCompute()
 	var endTime = endRecord.TotimeForCompute()
 	Mileage, _ := strconv.ParseFloat(endRecord.mileage, 64)
+
 	if isInNight(startTime) == false {
 		timeDifference := computeTimeDifference(startTime, endTime)
 		nightTime := math.Floor(float64(float64(endTime.hour)-22)/24) * 7 * 3600
-		if 0 <= ((int(endTime.hour)-22)%24) && ((int(endTime.hour)-22)%24) <= 6 ||
-			((int(endTime.hour)-22)%24) == 7 && endTime.minute == 0 && endTime.second == 0 {
-			nightTime += float64(int(endTime.hour)-22%24)*3600 + float64(endTime.minute)*60 + endTime.second
+		if 0 <= ((int(endTime.hour)-22)%24) && ((int(endTime.hour)-22)%24) <= 6 {
+			nightTime += float64((int(endTime.hour)-22)%24)*3600 + float64(endTime.minute)*60 + endTime.second
 		}
-		dayTime := timeDifference - nightTime
-
-		dayMileage := Mileage * (dayTime / timeDifference)
-		nightMileage := Mileage * (nightTime / timeDifference)
-
-		nightTime *= nightTimeRate
-		nightMileage *= nightTimeRate
-
-		return dayTime + nightTime, dayMileage + nightMileage
-
-	} else {
-		//翌日の5時
-		nightendTomorrow := Time{hour: 29, minute: 0, second: 0}
-		//翌5時までの時間を夜間時間に加える
-		nightTime := computeTimeDifference(startTime.RevisedTime(), nightendTomorrow)
-		//基準となる時間を求めるために24時間表記に直す
-		revisedStartTime := startTime.RevisedTime()
-		//基準となる時間
-		criterionTime := nightendTomorrow.SubtractTime(revisedStartTime.hour, revisedStartTime.minute, revisedStartTime.second)
-		criterionTime = criterionTime.AddTime(startTime.hour, startTime.minute, startTime.second)
-
-		timeDifference := computeTimeDifference(criterionTime, endTime)
-		nightTime += math.Floor(float64(float64(endTime.hour)-22)/24) * 7 * 3600
-		if 0 <= ((int(endTime.hour)-22)%24) && ((int(endTime.hour)-22)%24) <= 6 ||
-			((int(endTime.hour)-22)%24) == 7 && endTime.minute == 0 && endTime.second == 0 {
+		if ((int(endTime.hour)-22)%24) == 7 && endTime.minute == 0 && endTime.second == 0 {
 			nightTime += float64((int(endTime.hour)-22)%24)*3600 + float64(endTime.minute)*60 + endTime.second
 		}
 		dayTime := timeDifference - nightTime
@@ -373,6 +353,36 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 		return dayTime + nightTime, dayMileage + nightMileage
 
 	}
+	//翌日の5時
+	nightendTomorrow := Time{hour: 29, minute: 0, second: 0}
+	//翌5時までの時間を夜間時間に加える
+	nightTime := computeTimeDifference(startTime.RevisedTime(), nightendTomorrow)
+	//基準となる時間を求めるために24時間表記に直す
+	revisedStartTime := startTime.RevisedTime()
+	//基準となる時間
+	criterionTime, err := nightendTomorrow.SubtractTime(revisedStartTime.hour, revisedStartTime.minute, revisedStartTime.second)
+	if err != nil {
+		os.Exit(-1)
+	}
+	criterionTime = criterionTime.AddTime(startTime.hour, startTime.minute, startTime.second)
+
+	timeDifference := computeTimeDifference(criterionTime, endTime)
+	nightTime += math.Floor(float64(float64(endTime.hour)-22)/24) * 7 * 3600
+	if 0 <= ((int(endTime.hour)-22)%24) && ((int(endTime.hour)-22)%24) <= 6 {
+		nightTime += float64((int(endTime.hour)-22)%24)*3600 + float64(endTime.minute)*60 + endTime.second
+	}
+	if ((int(endTime.hour)-22)%24) == 7 && endTime.minute == 0 && endTime.second == 0 {
+		nightTime += float64((int(endTime.hour)-22)%24)*3600 + float64(endTime.minute)*60 + endTime.second
+	}
+	dayTime := timeDifference - nightTime
+
+	dayMileage := Mileage * (dayTime / timeDifference)
+	nightMileage := Mileage * (nightTime / timeDifference)
+
+	nightTime *= nightTimeRate
+	nightMileage *= nightTimeRate
+
+	return dayTime + nightTime, dayMileage + nightMileage
 
 }
 
