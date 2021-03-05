@@ -90,10 +90,11 @@ func readInput() ([]Record, error) {
 		//ここから正常に入力された時の処理
 		//時刻にsliced[0]、走行距離にsliced[1]を代入し、recordsに追加
 		records = append(records, Record{time: sliced[0], mileage: sliced[1]})
-		//入力が時系列順になっていない時もエラーなのでエラーを示すRecordを返す
+
 		if len(records) >= 2 {
 			prevTime := records[len(records)-2].TotimeForCompute()
 			currentTime := records[len(records)-1].TotimeForCompute()
+			//入力が時系列順になっていない時もエラーなのでエラーを示すRecordを返す
 			if timeutil.IsEarlier(prevTime, currentTime) == false {
 				return []Record{errorRecord}, errors.New("inputs must be in chronological order")
 			}
@@ -106,7 +107,7 @@ func readInput() ([]Record, error) {
 	if scanner.Err() != nil {
 		return []Record{errorRecord}, errors.New("unknown error has occurred")
 	}
-	//何らかの理由でforループを抜けてしまった時は、これも異常なのでエラーを示すRecordを返して終了する
+	//何らかの理由でforループを抜けてしまった時も異常なのでエラーを示すRecordを返して終了する
 	return []Record{errorRecord}, errors.New("unknown error has occurred")
 }
 
@@ -183,7 +184,9 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 
 	if timeutil.IsInNight(startTime) == false {
 		timeDifference := timeutil.ComputeTimeDifference(startTime, endTime)
+		//(endTime.Hour)-22)/24を小数点以下切り捨てし、7*3600をかけて秒数にする
 		nightTime := math.Floor(float64(float64(endTime.Hour)-22)/24) * 7 * 3600
+		//余りの時間をnightTimeに加算
 		if 0 <= ((int(endTime.Hour)-22)%24) && ((int(endTime.Hour)-22)%24) <= 6 {
 			nightTime += float64((int(endTime.Hour)-22)%24)*3600 + float64(endTime.Minute)*60 + endTime.Second
 		}
@@ -191,13 +194,13 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 			nightTime += float64((int(endTime.Hour)-22)%24)*3600 + float64(endTime.Minute)*60 + endTime.Second
 		}
 		dayTime := timeDifference - nightTime
-
+		//全体の時間の割合から距離を求める
 		dayMileage := Mileage * (dayTime / timeDifference)
 		nightMileage := Mileage * (nightTime / timeDifference)
-
+		//夜間時間・距離を1.25倍
 		nightTime *= nightTimeRate
 		nightMileage *= nightTimeRate
-
+		//距離・時間の合計を返す
 		return dayTime + nightTime, dayMileage + nightMileage
 
 	}
@@ -212,24 +215,29 @@ func computeComplicatedCase(startRecord Record, endRecord Record) (float64, floa
 	if err != nil {
 		os.Exit(-1)
 	}
+	//始点時刻を加算
 	criterionTime = criterionTime.AddTime(startTime.Hour, startTime.Minute, startTime.Second)
 
+	//全体の時間差を求める
 	timeDifference := timeutil.ComputeTimeDifference(criterionTime, endTime)
+	//(endTime.Hour)-22)/24を小数点以下切り捨てし、7*3600をかけて秒数にする
 	nightTime += math.Floor(float64(float64(endTime.Hour)-22)/24) * 7 * 3600
+	//余りの時間をnightTimeに加算
 	if 0 <= ((int(endTime.Hour)-22)%24) && ((int(endTime.Hour)-22)%24) <= 6 {
 		nightTime += float64((int(endTime.Hour)-22)%24)*3600 + float64(endTime.Minute)*60 + endTime.Second
 	}
 	if ((int(endTime.Hour)-22)%24) == 7 && endTime.Minute == 0 && endTime.Second == 0 {
 		nightTime += float64((int(endTime.Hour)-22)%24)*3600 + float64(endTime.Minute)*60 + endTime.Second
 	}
+	//全体の時間差-夜間時間で通常時間が分かる
 	dayTime := timeDifference - nightTime
-
+	//全体の時間の割合から距離を求める
 	dayMileage := Mileage * (dayTime / timeDifference)
 	nightMileage := Mileage * (nightTime / timeDifference)
-
+	//夜間時間・距離を1.25倍
 	nightTime *= nightTimeRate
 	nightMileage *= nightTimeRate
-
+	//距離・時間の合計を返す
 	return dayTime + nightTime, dayMileage + nightMileage
 
 }
